@@ -6,7 +6,7 @@ import { Button, Table, Popconfirm, message } from 'antd';
 import { withRouter } from 'react-router-dom';
 import { useAddBreadcrumb } from '@/hook';
 import { API } from '@/api';
-import { InitAddFormState, InitSearchFormData, InitTableState } from './state';
+import { InitSearchFormData, InitTableState } from './state';
 import SearchForm from './searchForm';
 import AddServer from './components/addServer';
 const { Column } = Table;
@@ -21,8 +21,6 @@ function Server(props) {
 
   const [visibleModal, setVisibleModal] = useState(false);
 
-  const [addFormState, setAddFormState] = useState(InitAddFormState);
-
   const [searchFormData, setSearchFormData] = useState(InitSearchFormData(props));
 
   const [loading, setLoading] = useState(false);
@@ -31,7 +29,10 @@ function Server(props) {
   const fetch = useFetch({search, dbtype, page});
   
   useEffect(() => {
-    fetch()
+    fetch();
+    return () => {
+      XHR.list.cancel();
+    }
   }, [fetch]);
 
   function useFetch({ search = '', dbtype = '-1', page = 1, page_size = 10 }) {
@@ -46,7 +47,7 @@ function Server(props) {
 
     setLoading(true);
 
-    XHR.list({
+    XHR.list.send({
       params: {
         search,
         dbtype: dbtype === '-1' ? "" : dbtype,
@@ -140,7 +141,8 @@ function Server(props) {
       pathname: `/server/info`,
       search: `serviceid=${record.serviceid}`,
       state: {
-        model: `${record.dbtype}`
+        model: `${record.dbtype}`,
+        servicename: record.servicename
       }
     })
   }
@@ -230,7 +232,7 @@ function Server(props) {
                     )}
                   />
                </Table>
-        <AddServer formData={addFormState} visible={visibleModal} changeModal={changeModal} changeDbtype={(val) => setAddFormState({...addFormState, dbtype:val})}/>
+        <AddServer visible={visibleModal} changeModal={changeModal} />
       </div>
   )
 }

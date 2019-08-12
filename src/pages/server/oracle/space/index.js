@@ -29,6 +29,9 @@ function OracleTabelSpace(props) {
     ResetDbMode(props).then(() => {
       getData(serverid)
     });
+    return () => {
+      XHR.space.cancel();
+    }
   }, [])
 
   function getData(id) {
@@ -38,7 +41,7 @@ function OracleTabelSpace(props) {
       }
     }
     dispath({type: 'fetch'});
-    XHR.space(id, params).then(res => {
+    XHR.space.send(id, params).then(res => {
       dispath({type: 'success', data: res || []});
     }).catch(() => {
       dispath({type: 'error', data: []});
@@ -78,7 +81,7 @@ function OracleTabelSpace(props) {
 
   return (
       <div className="app-page">
-        <PageTitle title={`表空间-Oracle`}></PageTitle>
+        <PageTitle title={`表空间-Oracle-${props.location.state.servicename}`}></PageTitle>
         <Button type="primary" className="m-t-8 m-b-24" onClick={() => {dispathModal({type: 'change'});setAddSpaceState(true)}}>增加表空间</Button>
         <Table
           size="middle"

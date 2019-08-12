@@ -18,6 +18,16 @@ const OracleMenu = [{
     title: '数据库用户',
     isQuery: true,
     model: Model[0]
+},{
+    path: '/server/oracle/lock',
+    title: '锁等待',
+    isQuery: true,
+    model: Model[0]
+},{
+    path: '/server/oracle/report',
+    title: '巡检报告',
+    isQuery: true,
+    model: Model[0]
 }];
 
 const MysqlMenu = [{
@@ -33,6 +43,11 @@ const MysqlMenu = [{
 },{
     path: '/server/mysql/link',
     title: '数据库链接',
+    isQuery: true,
+    model: Model[1]
+},{
+    path: '/server/mysql/slowSQL',
+    title: '慢SQL',
     isQuery: true,
     model: Model[1]
 }]

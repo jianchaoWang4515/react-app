@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useReducer } from 'react';
 import './index.less';
-import { Descriptions, Icon, Input, message, Tag, Button, Empty } from 'antd';
+import { Descriptions, Icon, Input, message, Tag, Button, Empty, Modal, Popconfirm } from 'antd';
 import { Link } from 'react-router-dom';
 import { useAddBreadcrumb } from '@/hook';
 import { PageTitle } from '@/components';
 import { parse } from '@/utils';
-import { InitServerInfoState } from './state';
+import { InitServerInfoState, InitAddFormState, InitModalState } from './state';
+import { modalReducer } from './reducer';
+import InstanceForm from './components/instanceForm';
 import { API } from '@/api';
 import { Dbtype } from '../state';
 /**
@@ -15,11 +17,13 @@ import { Dbtype } from '../state';
 
 function ServerInfo(props) {
   useAddBreadcrumb(props);
+  let addFormRef;
   const servicenameEl = useRef(null);
   const linkaddressEl = useRef(null);
   const portEl = useRef(null);
   const sidEl = useRef(null);
-
+  // console.log(props.location)
+  // const [serviceName, setServiceName] = useState(props.location.state.servicename);
   const { serverDetail:XHR } = API;
   const serverid = parse(props.location.search, 'serviceid');
   const [instanceState, setInstanceState] = useState([]);
@@ -29,6 +33,8 @@ function ServerInfo(props) {
   const [portEdit, setPortEdit] = useState(false);
   const [sidEdit, setSidEdit] = useState(false);
   const [currentDbtype, setCurrentDbtype] = useState(null);
+  const [addFormState] = useState(InitAddFormState);
+  const [modalState, dispathModal] = useReducer(modalReducer, InitModalState);
 
   const { serviceid,
           servicename, 
@@ -42,24 +48,29 @@ function ServerInfo(props) {
   useEffect(() => {
     getInfo(serverid);
     getSchema(serverid);
+    return () => {
+      XHR.info.cancel();
+      XHR.schema.cancel();
+    }
   }, []);
   /**
    * 获取数据库信息
    * @param {number|string} serverid 服务id
    */
   function getInfo(id) {
-    XHR.info(id).then((res) => {
+    XHR.info.send(id).then((res) => {
       setServerInfoState({
         ...serverInfoState,
         ...res
       });
       // 针对手动修改路由serviceid情况下需要重新匹配state.model类型
-      if (!props.location.state || (props.location.state && String(res.dbtype) !== props.location.state.model)) {
+      if (!props.location.state || (props.location.state && String(res.dbtype) !== props.location.state.model) || !props.location.state.servicename) {
         props.history.replace({
           ...props.location,
           state: {
             ...props.location.state,
-            model: String(res.dbtype)
+            model: String(res.dbtype),
+            servicename: res.servicename
           }
         });
       };
@@ -75,7 +86,7 @@ function ServerInfo(props) {
         page_size: 9999
       }
     }
-    XHR.schema(params).then((res) => {
+    XHR.schema.send(params).then((res) => {
       const dbtype = (res.results && res.results.length) ? res.results[0].dbtype : null;
       setCurrentDbtype(dbtype);
       let data = [];
@@ -93,7 +104,9 @@ function ServerInfo(props) {
               schematype,
               schemastate,
               id,
-              hostId
+              hostId,
+              refreshLoading: false,
+              delLoading: false
             }
           }) : [];
           break;
@@ -120,7 +133,9 @@ function ServerInfo(props) {
               port,
               ip,
               id,
-              hostId
+              hostId,
+              refreshLoading: false,
+              delLoading: false
             }
           }) : [];
             break;
@@ -197,16 +212,65 @@ function ServerInfo(props) {
         break;
     }
   }
+  /**
+   * 改变某一行loading状态
+   * @param {Object} id 
+   * @param {string} type del 修改删除loading  refresh 修改刷新loading
+   */
+  function setRowLoading(id, type) {
+    let newData = instanceState.map(item => {
+      if (item.id === id) {
+        if (type === 'del') item.delLoading = !item.delLoading;
+        else item.refreshLoading = !item.refreshLoading;
+      }
+      return item;
+    });
+    setInstanceState([
+      ...newData
+    ]);
+  }
 
   function onRefresh(id) {
+    setRowLoading(id, 'refresh');
     XHR.schemaDetail(id).then(() => {
+      setRowLoading(id, 'refresh');
       message.success('刷新成功');
     });
   }
+
+  function addInstanceSubmit(id) {
+    addFormRef.props.form.validateFields((errors, values) => {
+        if (!errors) {
+            dispathModal({type: 'submit'});
+            const params = {
+              ...values,
+              serviceid: id,
+              schematype: 1,
+              dbtype: currentDbtype
+            };
+            XHR.addSchema(params).then(() => {
+                getSchema(serverid)
+                message.success('新增成功！');
+                dispathModal({type: 'success'});
+            }).finally(() => {
+              dispathModal({type: 'error'});
+            });
+        };
+    });
+  }
+  
+  function delInstance(id) {
+    setRowLoading(id, 'del');
+    XHR.delSchema(id).then(() => {
+        setInstanceState([...instanceState.filter((item) => item.id !== id)]);
+        message.success('删除成功！');
+    });
+  }
+
   return (
       <div className="app-page server-info-page">
-        <PageTitle title={`DB服务详情-${Dbtype[String(dbtype)]}`}>
-        </PageTitle>
+        <PageTitle title={`DB服务详情-${Dbtype[String(dbtype)]}-${props.location.state ? props.location.state.servicename : ''}`}>
+          </PageTitle>
         <Descriptions className="host-detail p-16" column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}>
             <Descriptions.Item label="ServiceID">{serviceid || '-'}</Descriptions.Item>
             <Descriptions.Item label="服务名称">
@@ -267,7 +331,9 @@ function ServerInfo(props) {
             </Descriptions.Item>
             <Descriptions.Item label="服务版本">{service_version || '-'}</Descriptions.Item>
         </Descriptions>
-        <PageTitle title="数据库实例" isIcon={false}></PageTitle>
+        <PageTitle title="数据库实例" isIcon={false}>
+          <Button type="primary" size="small" style={{float: 'right', padding: '0 18px'}} onClick={() => {dispathModal({type: 'change'})} }>新增实例</Button>
+        </PageTitle>
         {currentDbtype === 0 && (
           instanceState.map((item, index) => (
             <div className="db-instance m-b-16 p-16" key={index}>
@@ -281,12 +347,24 @@ function ServerInfo(props) {
                   </Descriptions>
                   <div className="db-instance_header-tag">
                     {item.schematype === 0 ? <Tag color="blue">主</Tag> : <Tag color="geekblue">从</Tag>}
-                    {item.schemastate === 0 ? <Tag color="green">正常</Tag> : <Tag color="red">异常</Tag>}
+                    {item.schemastate === -2 && <Tag color="red">创建失败</Tag>}
+                    {item.schemastate === -1 && <Tag>下线</Tag>}
+                    {item.schemastate === 0 && <Tag color="green">正常</Tag>}
+                    {item.schemastate === 1 && <Tag color="magenta">连接失败</Tag>}
+                    {item.schemastate === 2 && <Tag color="lime">创建中</Tag>}
                     <Button type="primary" size="small" 
+                             loading={item.refreshLoading}
                             style={{fontSize: '12px', height: '22px'}}
+                            className="m-r-8"
                             onClick={() => onRefresh(item.id)}>
                       刷新
                     </Button>
+                    <Popconfirm title="确定删除吗?" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) =>delInstance(item.id)}>
+                      <Button type="danger" size="small" loading={item.delLoading}
+                              style={{fontSize: '12px', height: '22px'}}>
+                          删除
+                      </Button>
+                    </Popconfirm>
                   </div>
                 </header>
                 <Descriptions column={{ xxl: 4, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }}>
@@ -317,9 +395,17 @@ function ServerInfo(props) {
                 {item.schemastate === 2 && <Tag color="lime">创建中</Tag>}
                 <Button type="primary" size="small" 
                         style={{fontSize: '12px', height: '22px'}}
+                        className="m-r-8"
+                        loading={item.refreshLoading}
                         onClick={() => onRefresh(item.id)}>
                   刷新
                 </Button>
+                <Popconfirm title="确定删除吗?" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) =>delInstance(item.id)}>
+                  <Button type="danger" size="small"  loading={item.delLoading}
+                          style={{fontSize: '12px', height: '22px'}}>
+                      删除
+                  </Button>
+                </Popconfirm>
               </div>
             </header>
             <Descriptions column={{ xxl: 4, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }}>
@@ -341,6 +427,19 @@ function ServerInfo(props) {
         {currentDbtype === null && (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
         )}
+        <Modal
+          title='创建数据库'
+          cancelText="取消"
+          okText="确定"
+          maskClosable={false}
+          visible={modalState.visible}
+          onOk={() => addInstanceSubmit(serverid)}
+          confirmLoading={modalState.loading}
+          onCancel={() => dispathModal({type: 'change'})}
+          afterClose={() => {addFormRef.props.form.resetFields()}}
+        >
+          <InstanceForm wrappedComponentRef={(form) => addFormRef = form} formData={addFormState} dbtype={currentDbtype}/>
+        </Modal>
       </div>
   )
 }

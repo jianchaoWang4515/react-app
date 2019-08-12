@@ -1,4 +1,5 @@
 import axios from '@/plugin/xhr';
+import { cancelAxios } from './util';
 
 export const API = {
     global: {
@@ -15,8 +16,15 @@ export const API = {
      * 主机管理
      */
     host: {
-        list(params) {
-            return axios.get('/api/host/hostinfo/', params);
+        list: {
+            url: '/api/host/hostinfo/',
+            method: 'get',
+            send(params) {
+                return axios[this.method](this.url, params);
+            },
+            cancel() {
+                return cancelAxios({url: this.url});
+            }
         },
         create(params) {
             return axios.post('/api/host/hostinfo/', params);
@@ -40,8 +48,15 @@ export const API = {
         }
     },
     server: {
-        list(params) {
-            return axios.get('/api/service/serviceinfo/', params);
+        list: {
+            url: '/api/service/serviceinfo/',
+            method: 'get',
+            send(params) {
+                return axios[this.method](this.url, params);
+            },
+            cancel() {
+                return cancelAxios({url: this.url});
+            }
         },
         delete(id) {
             return axios.delete(`/api/service/serviceinfodetail/${id}/`);
@@ -57,12 +72,42 @@ export const API = {
         }
     },
     serverDetail: {
-        info(serviceid) {
-            return axios.get(`/api/service/serviceinfodetail/${serviceid}/`);
+        info: {
+            url: '/api/service/serviceinfodetail/${serviceid}/',
+            method: 'get',
+            send(serviceid) {
+                const url = `/api/service/serviceinfodetail/${serviceid}/`;
+                this.url = url;
+                return axios[this.method](url);
+            },
+            cancel() {
+                return cancelAxios({url: this.url});
+            }
         },
-        // 数据库实例
-        schema(params) {
-            return axios.get('/api/schema/schemainfo/', params);
+        /**
+         * 数据库实例
+         *  */
+        schema: {
+            url: '/api/schema/schemainfo/',
+            method: 'get',
+            send(params) {
+                return axios[this.method](this.url, params);
+            },
+            cancel() {
+                return cancelAxios({url: this.url});
+            }
+        },
+        /**
+         * 新增实例
+         */
+        addSchema(params) {
+            return axios.post('/api/schema/schemainfo/', params);
+        },
+        /**
+         * 删除实例
+         */
+        delSchema(id) {
+            return axios.delete(`/api/schema/schemadetail/${id}/`);
         },
         // 刷新数据库实例
         schemaDetail(id) {
@@ -73,10 +118,19 @@ export const API = {
         },
         oracle: {
             /**
-             * 获取表空间及数据文件信息
+             * 数据库链接列表
              */
-            space(serviceid, params) {
-                return axios.get(`/api/dbadmin/oracleadmin/${serviceid}/`, params);
+            space: {
+                url: '/api/dbadmin/oracleadmin/${serviceid}/',
+                method: 'get',
+                send(serviceid, params) {
+                    const url = `/api/dbadmin/oracleadmin/${serviceid}/`;
+                    this.url = url;
+                    return axios[this.method](url, params);
+                },
+                cancel() {
+                    return cancelAxios({url: this.url});
+                }
             },
             /**
              * 增加表空间或增加数据文件
@@ -87,8 +141,15 @@ export const API = {
             /**
              * 数据库用户列表
              */
-            dbUserList(params) {
-                return axios.get('/api/serviceuser/serviceuserinfo/', params);
+            dbUserList: {
+                url: '/api/serviceuser/serviceuserinfo/',
+                method: 'get',
+                send(params) {
+                    return axios[this.method](this.url, params);
+                },
+                cancel() {
+                    return cancelAxios({url: this.url});
+                }
             },
             /**
              * 同步Oracle数据库用户
@@ -122,6 +183,40 @@ export const API = {
             },
             deleteUser(userId, params) {
                 return axios.put(`/api/serviceuser/serviceuserdetail/${userId}/?action=delete`, params);
+            },
+            /**
+             * 获取锁等待列表
+             */
+            slowWait: {
+                url: '/api/dbadmin/oracleadmin/${serviceid}/?action=locked',
+                method: 'get',
+                send(serviceid) {
+                    const url = `/api/dbadmin/oracleadmin/${serviceid}/?action=locked`;
+                    this.url = url;
+                    return axios[this.method](url);
+                },
+                cancel() {
+                    return cancelAxios({url: this.url});
+                }
+            },
+            // slowWait(serviceid) {
+            //     return axios.get(`/api/dbadmin/oracleadmin/${serviceid}/?action=locked`);
+            // },
+            killSlowWait(serviceid, sid, serial, inst_id) {
+                return axios.delete(`/api/dbadmin/oracleadmin/${serviceid}/?action=killsession&sid=${sid}&serial=${serial}&inst_id=${inst_id}`);
+            },
+            /**
+             * 巡检报告
+             */
+            report: {
+                url: '/api/dbadmin/oraclereport/',
+                method: 'get',
+                send(params) {
+                    return axios[this.method](this.url, params);
+                },
+                cancel() {
+                    return cancelAxios({url: this.url});
+                }
             }
         },
         mysql: {
@@ -150,8 +245,17 @@ export const API = {
             /**
              * 数据库链接列表
              */
-            dbLink(serviceid) {
-                return axios.get(`/api/dbadmin/mysqladmin/${serviceid}/?action=full_processlist`);
+            dbLink: {
+                url: '/api/dbadmin/mysqladmin/${serviceid}/?action=full_processlist',
+                method: 'get',
+                send(serviceid) {
+                    const url = `/api/dbadmin/mysqladmin/${serviceid}/?action=full_processlist`;
+                    this.url = url;
+                    return axios[this.method](url);
+                },
+                cancel() {
+                    return cancelAxios({url: this.url});
+                }
             },
             /**
              * kill数据库结进程
@@ -160,6 +264,31 @@ export const API = {
              */
             killDbLink(serviceid, pid) {
                 return axios.get(`/api/dbadmin/mysqladmin/${serviceid}/?action=killsession&pid=${pid}`);
+            },
+            /**
+             * 慢日志列表
+             */
+            slowSQLList: { 
+                url: '/api/dbadmin/mysqlslowlog',
+                method: 'get',
+                send(params) {
+                    return axios[this.method](this.url, params);
+                },
+                cancel() {
+                    return cancelAxios({url: this.url});
+                }
+            },
+            /**
+             * 慢日志样例
+             */
+            slowSQLSample(params) {
+                return axios.get('/api/dbadmin/mysqlslowloghistory/', params);
+            },
+            /**
+             * 慢日志优化
+             */
+            slowSQLOptimize(checksum, serviceid) {
+                return axios.get(`/api/dbadmin/mysqlslowlogoptimize/${checksum}/?serviceid=${serviceid}`);
             }
         }
     }

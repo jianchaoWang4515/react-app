@@ -1,16 +1,4 @@
 import JSONSessionStorage from '@/utils/session-storage';
-export const InitAddFormState = {
-        servicename: '',
-        dbtype: '0',
-        framework: '',
-        service_version: '',
-        linkaddress: '',
-        port: '',
-        sid: '',
-        adminuser: '',
-        adminpassword: '',
-        schemas: {}
-}
 
 export const InitTableState = {
     total: 0,

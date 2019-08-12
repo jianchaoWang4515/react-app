@@ -24,6 +24,7 @@ class AddDbUserForm extends React.Component {
     }
 
     ownersTagChange = () => {
+        // 在onChange合成事件中无法同步拿到owners_tag，利用setTimeout解决
         setTimeout(() => {
             const ownerTable = this.props.form.getFieldValue('owners_tag');
             this.getOwnerTables(this.props.serviceid, ownerTable);
@@ -41,7 +42,7 @@ class AddDbUserForm extends React.Component {
           this.setState({
             tableSpaceLoading: true
           })
-          this.state.XHR.space(id, params).then(res => {
+          this.state.XHR.space.send(id, params).then(res => {
             this.setState({
                 tableSpaceList: res || []
             });

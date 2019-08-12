@@ -9,9 +9,9 @@ import { useAddBreadcrumb } from '@/hook';
 import { ResetDbMode } from '@/pages/server/util';
 import { API } from '@/api';
 const { Column } = Table;
-function MysqlLink(props) {
+function LockWait(props) {
   const serverid = parse(props.location.search, 'serviceid');
-  const { mysql:XHR } = API.serverDetail;
+  const { oracle:XHR } = API.serverDetail;
   useAddBreadcrumb(props);
 
   const [tableState, dispathTable] = useReducer(tableReducer, InitTableState);
@@ -22,98 +22,104 @@ function MysqlLink(props) {
       getDta(serverid);
     });
     return () => {
-      XHR.dbLink.cancel();
+      XHR.slowWait.cancel();
     };
   }, []);
 
   function getDta(id) {
     dispathTable({ type: 'fetch'});
-    XHR.dbLink.send(id).then(res => {
+    XHR.slowWait.send(id).then(res => {
       let data = res || [];
-      data.forEach(item => {
-        item.loading = false;
+      data.forEach(ele => {
+        const { INST_ID, SID} = ele;
+        ele._id = `${INST_ID}${SID}`;
+        ele.loading = false;
       });
       dispathTable({ type: 'success', data});
     }).catch(() => {
       dispathTable({ type: 'error'});
     });
   };
-
   /**
    * 改变某一行loading状态
-   * @param {Object} id 
-   * @param {string} type del 修改删除loading  reset 重置密码loading
+   * @param {Object} record 要改变的行数据
+   * @param {string} key 唯一值
    */
-  function setRowLoading(id) {
+  function setRowLoading(record, key) {
     let newData = data.map(item => {
-      if (item.ID === id) item.loading = !item.loading;
+      if (item[key] === record[key]) item.loading = !item.loading;
       return item;
     });
-    dispathTable({type: 'success', data: newData});
+    dispathTable({ type: 'success', data: newData});
   }
-
-  function onKill(e, id, pid) {
+  function onKill(e, serverid, record) {
     e.stopPropagation();
-    setRowLoading(id);
-    XHR.killDbLink(id, pid).then(res => {
-      getDta(id);
+    const { SID, INST_ID } = record;
+    setRowLoading(record, '_id');
+    XHR.killSlowWait(serverid, SID, record['SERIAL#'], INST_ID).then(res => {
+      getDta(serverid);
       message.success('操作成功');
-    }).finally(() => {
-      setRowLoading(id);
+      setRowLoading(record, '_id');
     });
   }
   return (
       <div className="app-page">
-        <PageTitle title={`数据库链接-Mysql-${props.location.state ? props.location.state.servicename : ''}`}></PageTitle>
+        <PageTitle title={`数据库链接-Oracle-${props.location.state ? props.location.state.servicename : ''}`}></PageTitle>
         <Table
          className="m-t-24"
           bordered
           size="middle"
           loading={loading}
           pagination={false}
-          rowKey={(record) => record.ID}
+          rowKey={(record) => record._id}
           dataSource={data}
         >
           <Column
-            title="ID"
-            dataIndex="ID"
-            key="ID"
+            title="INST_ID"
+            dataIndex="INST_ID"
+            key="INST_ID"
             align="center"
           />
           <Column
-            title="HOST"
-            dataIndex="HOST"
-            key="HOST"
+            title="SID"
+            dataIndex="SID"
+            key="SID"
             align="center"
           />
           <Column
-            title="DB"
-            dataIndex="DB"
-            key="DB"
+            title="SERIAL#"
+            dataIndex="SERIAL#"
+            key="SERIAL#"
             align="center"
           />
           <Column
-            title="COMMAND"
-            dataIndex="COMMAND"
-            key="COMMAND"
+            title="USERNAME"
+            dataIndex="USERNAME"
+            key="USERNAME"
             align="center"
           />
           <Column
-            title="TIME"
-            dataIndex="TIME"
-            key="TIME"
+            title="PROGRAM"
+            dataIndex="PROGRAM"
+            key="PROGRAM"
             align="center"
           />
           <Column
-            title="STATE"
-            dataIndex="STATE"
-            key="STATE"
+            title="SECONDS_IN_WAIT"
+            dataIndex="SECONDS_IN_WAIT"
+            key="SECONDS_IN_WAIT"
             align="center"
           />
           <Column
-            title="INFO"
-            dataIndex="INFO"
-            key="INFO"
+            title="SQL_ID"
+            dataIndex="SQL_ID"
+            key="SQL_ID"
+            align="center"
+          />
+          <Column
+            title="SQL_TEXT"
+            dataIndex="SQL_TEXT"
+            key="SQL_TEXT"
             align="center"
             className="word-wrap"
           />
@@ -122,7 +128,7 @@ function MysqlLink(props) {
             key="action"
             align="center"
             render={(text, record) => (
-              <Popconfirm title="是否KILL此链接？" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) => onKill(e, serverid, record.ID)}>
+              <Popconfirm title="是否KILL此链接？" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) => onKill(e, serverid, record)}>
                 <Button size="small" type="danger" loading={record.loading}>KILL</Button>
               </Popconfirm>
             )}
@@ -132,4 +138,4 @@ function MysqlLink(props) {
   )
 }
 
-export default withRouter(MysqlLink);
+export default withRouter(LockWait);

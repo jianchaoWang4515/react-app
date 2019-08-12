@@ -1,5 +1,5 @@
 import React, { useReducer, useEffect, useState } from 'react';
-import { Button, Table, Modal, message, Popconfirm } from 'antd';
+import { Button, Table, Modal, message, Popconfirm, Typography, Tooltip } from 'antd';
 import { parse } from '@/utils';
 import { PageTitle } from '@/components';
 import { useAddBreadcrumb } from '@/hook';
@@ -9,25 +9,28 @@ import AddDbUserForm from './components/addForm';
 import { ResetDbMode } from '@/pages/server/util';
 import { API } from '@/api';
 const { Column } = Table;
+const { Paragraph } = Typography;
 function OracleDbUser(props) {
   let addFormRef;
   useAddBreadcrumb(props);
   const serverid = parse(props.location.search, 'serviceid');
   const { oracle:XHR } = API.serverDetail;
- 
+  
   const [modalState, dispathModal] = useReducer(modalReducer, InitModalState);
   const [tableState, dispathTable] = useReducer(tableReducer, InitTableState);
   const [addFormState, setAddFormState] = useState(InitAddFormState);
   const { data, loading } = tableState;
 
   const [syncLoading, setSyncLoading] = useState(false);
-  const [resetPwdLoading, setResetPwdLoading] = useState(false);
   const [isAdd, setIsAdd] = useState(false);// true 新增 false 修改
   const [actionUser, setActionUser] = useState(null); // 当前操作的用户信息
   useEffect(() => {
     ResetDbMode(props).then(() => {
       getUser(serverid)
     });
+    return () => {
+      XHR.dbUserList.cancel();
+    };
   }, []);
 
   function getUser(id) {
@@ -36,8 +39,13 @@ function OracleDbUser(props) {
       serviceid: id
     }
     dispathTable({type: 'fetch'});
-    XHR.dbUserList({ params }).then(res => {
-      dispathTable({type: 'success', data: res.results || []});
+    XHR.dbUserList.send({ params }).then(res => {
+      let data = res.results || [];
+      data.forEach(item => {
+        item.resetLoading = false;
+        item.delLoading = false;
+      });
+      dispathTable({type: 'success', data});
     }).catch(() => {
       dispathTable({type: 'error', data: []});
     });
@@ -85,6 +93,22 @@ function OracleDbUser(props) {
     })
   } 
 
+   /**
+   * 改变某一行loading状态
+   * @param {Object} id 
+   * @param {string} type del 修改删除loading  reset 重置密码loading
+   */
+  function setRowLoading(id, type) {
+    let newData = data.map(item => {
+      if (item.id === id) {
+        if (type === 'del') item.delLoading = !item.delLoading;
+        else item.resetLoading = !item.resetLoading;
+      }
+      return item;
+    });
+    dispathTable({type: 'success', data: newData});
+  }
+
   /**
    * 删除用户
    * @param { Number } userId 用户id 
@@ -92,13 +116,13 @@ function OracleDbUser(props) {
    */
   function onDel(e, userId, mode) {
     e.stopPropagation();
-    dispathTable({type: 'fetch'});
+    setRowLoading(userId, 'del');
     XHR.deleteUser(userId, { mode }).then(() => {
       const dataSource = [...data];
       dispathTable({ type: 'success', data: dataSource.filter(item => item.id !== userId) });
       message.success('删除成功');
     }).catch(() => {
-      dispathTable({ type: 'error'});
+      setRowLoading(userId, 'del');
     })
   }
 
@@ -117,11 +141,11 @@ function OracleDbUser(props) {
       serviceid,
       password: ''
     }
-    setResetPwdLoading(true);
+    setRowLoading(userId, 'reset');
     XHR.resetPwd(userId, params).then(() => {
       message.success('重置成功');
     }).finally(() => {
-      setResetPwdLoading(false);
+      setRowLoading(userId, 'reset');
     })
   }
 
@@ -129,6 +153,7 @@ function OracleDbUser(props) {
    * 改变用户类型回调 用于更换新增用户表单内容
    */
   function changeUserType() {
+    // 在onChange合成事件中无法同步拿到owners_tag，利用setTimeout解决
     setTimeout(() => {
       const user_type = addFormRef.props.form.getFieldValue('user_type');
       setAddFormState({
@@ -178,7 +203,7 @@ function OracleDbUser(props) {
   }
   return (
       <div className="app-page">
-        <PageTitle title={`数据库用户-Oracle`}></PageTitle>
+        <PageTitle title={`数据库用户-Oracle-${props.location.state ? props.location.state.servicename : ''}`}></PageTitle>
         <Button type="primary" className="m-t-8 m-b-24" onClick={() => {dispathModal({type: 'change'});setIsAdd(true)}}>添加用户</Button>
         <Button loading={syncLoading} type="primary" className="m-t-8 m-l-24" onClick={() => syncDbUser(serverid)}>同步数据库用户</Button>
         <Table
@@ -194,14 +219,12 @@ function OracleDbUser(props) {
             dataIndex="username"
             key="username"
             align="center"
-            width="200px"
           />
           <Column
             title="用户类型"
             dataIndex="user_type"
             key="user_type"
             align="center"
-            width="100px"
             render={(text) => (
               <span>
                 {text === 0 && '管理用户'}
@@ -215,7 +238,6 @@ function OracleDbUser(props) {
             dataIndex="status"
             key="status"
             align="center"
-            width="70px"
             render={(text) => (
               <span>
                 {TableStatus.get(String(text))}
@@ -227,32 +249,42 @@ function OracleDbUser(props) {
             dataIndex="databases"
             key="databases"
             align="center"
-            width="100px"
           />
           <Column
             title="角色"
             dataIndex="role"
             key="role"
             align="center"
-            width="400px"
             className="word-wrap"
+          />
+          <Column
+            title="加密串"
+            dataIndex="encryption_string"
+            key="encryption_string"
+            align="center"
+            className="word-wrap"
+            render={(text) => (
+                <Tooltip title={text} overlayStyle={{maxWidth:'50%'}}>
+                  <Paragraph style={{marginBottom: 0}} copyable={Boolean(text)} ellipsis={{rows: 1}}>{text}</Paragraph>
+                </Tooltip>
+            )}
           />
           <Column
             title="操作"
             key="action"
             align="center"
-            width="300px"
+            width="250px"
             render={(text, record) => (
               <>
                 {record.user_type !== 0 && (
                   <Button size="small" type="primary" onClick={() => onEdit(record)}>修改</Button>
                 )}
-                <Popconfirm title="此操作会重置数据库中该用户密码,是否重置?" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) => {setActionUser(record);resetPwd(record.id, serverid)}}>
-                  <Button size="small" loading={(actionUser && actionUser.id === record.id && resetPwdLoading)} className={record.user_type !== 0 ? 'm-l-8' : ''} type="danger">重置密码</Button>
+                <Popconfirm title="此操作会重置数据库中该用户密码,是否重置?" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) => {resetPwd(record.id, serverid)}}>
+                  <Button size="small" loading={record.resetLoading} className={record.user_type !== 0 ? 'm-l-8' : ''} type="danger">重置密码</Button>
                 </Popconfirm>
                 {record.user_type !== 0 && (
                   <Popconfirm title="是否删除记录?" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) => onDel(e, record.id, 1)}>
-                    <Button size="small" className="m-l-8" type="danger">删除</Button>
+                    <Button size="small" loading={record.delLoading} className="m-l-8" type="danger">删除</Button>
                   </Popconfirm>
                 )}
               </>

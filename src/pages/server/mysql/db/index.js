@@ -36,7 +36,11 @@ function MysqlDb(props) {
     }
     dispathTable({type: 'fetch'});
     XHR.db({ params }).then(res => {
-      dispathTable({type: 'success', data: res.results || []});
+      let data = res.results || [];
+      data.forEach(item => {
+        item.loading = false;
+      });
+      dispathTable({type: 'success', data});
     }).catch(() => {
       dispathTable({type: 'error', data: []});
     });
@@ -61,9 +65,23 @@ function MysqlDb(props) {
         };
     });
   }
+
   function resetAddForm() {
     addFormRef.props.form.resetFields();
   } 
+
+  /**
+   * 改变某一行loading状态
+   * @param {Object} id 
+   * @param {string} type del 修改删除loading  reset 重置密码loading
+   */
+  function setRowLoading(id) {
+    let newData = data.map(item => {
+      if (item.id === id) item.loading = !item.loading;
+      return item;
+    });
+    dispathTable({type: 'success', data: newData});
+  }
 
   /**
    * 删除数据库
@@ -71,13 +89,13 @@ function MysqlDb(props) {
    */
   function onDel(e, id) {
     e.stopPropagation();
-    dispathTable('fetch');
+    setRowLoading(id)
     XHR.delete(id).then(() => {
       const dataSource = [...data];
       dispathTable({ type: 'success', data: dataSource.filter(item => item.id !== id) });
       message.success('删除成功');
     }).catch(() => {
-      dispathTable('error');
+      setRowLoading(id);
     })
   }
 
@@ -93,7 +111,7 @@ function MysqlDb(props) {
 
   return (
       <div className="app-page">
-        <PageTitle title={`数据库-Mysql`}></PageTitle>
+        <PageTitle title={`数据库-Mysql-${props.location.state ? props.location.state.servicename : ''}`}></PageTitle>
         <Button type="primary" className="m-t-8 m-b-24" onClick={() => {dispathModal({type: 'change'})}}>创建数据库</Button>
         <Button loading={syncLoading} type="primary" className="m-t-8 m-l-24" onClick={() => syncDb(serverid)}>同步数据库信息</Button>
         <Table
@@ -137,7 +155,7 @@ function MysqlDb(props) {
             align="center"
             render={(text, record) => (
               <Popconfirm title="确定删除吗?" cancelText="取消" okText="确定" onCancel={(e) => e.stopPropagation()} onConfirm={(e) => onDel(e, record.id)}>
-                  <Button size="small" type="danger">删除</Button>
+                  <Button size="small" loading={record.loading} type="danger">删除</Button>
               </Popconfirm>
             )}
           />

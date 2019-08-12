@@ -6,7 +6,7 @@
 export function ResetDbMode(props) {
     const { state = '' } = props.location;
     return new Promise((resolve,reject) => {
-        if (state && state.model) {
+        if (state && state.model && state.servicename) {
             resolve()
         } else {
             props.history.replace({

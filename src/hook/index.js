@@ -43,17 +43,3 @@ export function useAddBreadcrumb(props) {
         })
     }, [props.location]);
 }
-
-/**
- * 更新应用title
- * @param {string} title 页面标题
- */
-export function useDocumentTitle(title) {
-    useEffect(
-      () => {
-        document.title = title;
-        return () => (document.title = "Forrest");
-      },
-      [title]
-    );
-}

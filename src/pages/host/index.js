@@ -15,24 +15,23 @@ function Host(props) {
   const { host:XHR } = API;
   let formRef;
   useAddBreadcrumb(props);
-  
-  // const [visibleModal, setVisibleModal] = useState(false);
+
   const [state, setState] = useState(InitState);
   const [searchFormData, setSearchFormData] = useState(InitSearchFormData(props));
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  // const [isAdd, setIsAdd] = useState(true); // 区分新增或修改
-  // const [hostId, setHostId] = useState(0); // 修改时当前主机id
   const { search, servermode, servertype, page, page_size } = searchFormData;
   const {
           tableData, 
-          total,
-          formData
+          total
         } = state;
   const fetch = useFetch({search, servermode, servertype, page});
   
   useEffect(() => {
     fetch()
+    return () => {
+      XHR.list.cancel();
+    }
   }, [fetch]);
 
   function useFetch({ search = '', servermode = '-1', servertype = '-1', page = 1, page_size = 10 }) {
@@ -50,7 +49,7 @@ function Host(props) {
 
     setLoading(true);
 
-    XHR.list({
+    XHR.list.send({
       params: {
         search,
         servermode: servermode === '-1' ? "" : servermode,
@@ -74,8 +73,9 @@ function Host(props) {
         ...state,
         total: count || 0,
         tableData: data
-      })
-    }).finally(() => {
+      });
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     })
   }
